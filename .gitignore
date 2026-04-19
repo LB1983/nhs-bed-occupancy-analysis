@@ -1,0 +1,18 @@
+# Raw data
+01-data-raw/
+02-data-interim/
+*.duckdb
+*.duckdb.wal
+
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
+
+# Debug scripts
+analysis/cleaning/debug_*.py
+
+# OS
+.DS_Store
+Thumbs.db
