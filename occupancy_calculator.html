@@ -59,7 +59,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div class="card">
   <div class="card-label">Select your trust</div>
-  <input class="search-box" type="text" id="search" placeholder="Search by name or ODS code..." oninput="filterList()" />
+  <input class="search-box" type="text" id="search" placeholder="Search by name or ODS code (e.g. 'Northampton' or 'RNS')..." oninput="filterList()" />
   <div id="trust-list"></div>
   <button class="manual-btn" onclick="showManual()">Enter proximity data manually</button>
 </div>
@@ -330,7 +330,7 @@ function filterList(){renderList(document.getElementById('search').value.toLower
 
 function renderList(q=''){
   const shown=q.length>1
-    ?TRUSTS.filter(t=>t.name.toLowerCase().includes(q)||t.code.toLowerCase().includes(q))
+    ?TRUSTS.filter(t=>t.name.toLowerCase().includes(q)||t.code.toLowerCase().includes(q)||t.short.toLowerCase().includes(q))
     :TRUSTS.slice(0,6);
   document.getElementById('trust-list').innerHTML=shown.map(t=>`
     <button class="trust-option${trust&&trust.code===t.code?' selected':''}" onclick="pick('${t.code}')">
