@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NHS Local Occupancy Ceiling Calculator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#0B2D39;padding:1.5rem;max-width:680px;margin:0 auto}
+.intro{font-size:14px;color:#5F5E5A;line-height:1.6;margin-bottom:1.5rem}
+.card{background:#fff;border:1px solid #e0ddd6;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;color:#888780;margin-bottom:1rem}
+.search-box{width:100%;padding:8px 12px;border:1px solid #e0ddd6;border-radius:8px;font-size:14px;margin-bottom:8px;outline:none}
+.search-box:focus{border-color:#1BA6A6}
+.trust-option{display:block;width:100%;text-align:left;background:none;border:1px solid #e0ddd6;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;color:#0B2D39;margin-bottom:4px;line-height:1.4}
+.trust-option:hover{background:#F5F0E6}
+.trust-option.selected{border-color:#1BA6A6;background:#E1F5EE}
+.trust-name{font-weight:500;display:block}
+.trust-meta{font-size:11px;color:#888780}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field label{display:block;font-size:13px;color:#5F5E5A;margin-bottom:4px}
+.field input{width:100%;padding:8px 12px;border:1px solid #e0ddd6;border-radius:8px;font-size:14px;outline:none}
+.field input:focus{border-color:#1BA6A6}
+.hint{font-size:11px;color:#B4B2A9;margin-top:3px;line-height:1.4}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.stat{background:#F5F0E6;border-radius:8px;padding:10px 12px}
+.stat-label{font-size:11px;color:#5F5E5A;margin-bottom:3px}
+.stat-val{font-size:17px;font-weight:500;color:#0B2D39}
+.result-big{text-align:center;padding:1.25rem 0 0.75rem}
+.result-num{font-size:56px;font-weight:500;line-height:1;color:#1BA6A6}
+.result-sub{font-size:13px;color:#888780;margin-top:4px}
+.bar-wrap{margin:0.75rem 0 0.25rem}
+.bar-track{height:8px;background:#F5F0E6;border-radius:4px;position:relative}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.35s,background 0.35s}
+.bar-marks{position:relative;height:18px;margin-top:2px}
+.bar-mark{position:absolute;font-size:10px;color:#B4B2A9;transform:translateX(-50%)}
+.breakdown{margin-top:1rem;border-top:1px solid #e0ddd6;padding-top:0.75rem}
+.brow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #e0ddd6;font-size:13px;color:#0B2D39}
+.brow:last-child{border-bottom:none;font-weight:500}
+.badge{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px}
+.badge-teal{background:#E1F5EE;color:#085041}
+.badge-amber{background:#FAEEDA;color:#633806}
+.badge-red{background:#FCEBEB;color:#791F1F}
+.badge-gray{background:#F5F0E6;color:#5F5E5A}
+.verdict{margin-top:0.75rem;padding:0.875rem 1rem;border-radius:8px;font-size:13px;line-height:1.6}
+.verdict-teal{background:#E1F5EE;color:#085041}
+.verdict-amber{background:#FAEEDA;color:#633806}
+.verdict-red{background:#FCEBEB;color:#791F1F}
+.sys-row{display:flex;align-items:flex-start;gap:10px;margin-top:0.75rem;font-size:13px;color:#5F5E5A;line-height:1.5}
+.sys-row input[type=checkbox]{width:16px;height:16px;flex-shrink:0;margin-top:2px;accent-color:#1BA6A6}
+.manual-btn{background:none;border:none;color:#1BA6A6;font-size:13px;cursor:pointer;padding:4px 0;text-decoration:underline;margin-top:4px}
+.source{font-size:11px;color:#B4B2A9;margin-top:1rem;line-height:1.5}
+.source a{color:#1BA6A6}
+</style>
+</head>
+<body>
+
+<p class="intro">Translates the 85% national target into a trust-specific safety ceiling, adjusted for geographic substitutability and demand profile. Based on two-way fixed-effects panel analysis of 3,551+ NHS trust-quarters, 2018–25. <a href="https://github.com/LB1983/nhs-bed-occupancy-analysis" style="color:#1BA6A6">Full methodology on GitHub.</a></p>
+
+<div class="card">
+  <div class="card-label">Select your trust</div>
+  <input class="search-box" type="text" id="search" placeholder="Search by name or ODS code..." oninput="filterList()" />
+  <div id="trust-list"></div>
+  <button class="manual-btn" onclick="showManual()">Enter proximity data manually</button>
+</div>
+
+<div class="card" id="prox-card" style="display:none">
+  <div class="card-label" id="prox-label">Trust profile</div>
+  <div id="prox-content"></div>
+</div>
+
+<div class="card" id="demand-card" style="display:none">
+  <div class="card-label">Demand profile</div>
+  <div class="row2">
+    <div class="field">
+      <label>Emergency dependency ratio (EDR)</label>
+      <input type="number" id="edr" min="0.1" max="0.9" step="0.01" value="0.42" oninput="calc()" />
+      <p class="hint">Emergency admissions / occupied bed days. Typical range 0.25–0.65.</p>
+    </div>
+    <div class="field">
+      <label>Occupancy volatility (OV)</label>
+      <input type="number" id="ov" min="0.01" max="0.15" step="0.005" value="0.04" oninput="calc()" />
+      <p class="hint">SD of quarterly occupancy / mean. Typical range 0.02–0.09.</p>
+    </div>
+  </div>
+  <div class="sys-row">
+    <input type="checkbox" id="sys" onchange="calc()" />
+    <label for="sys">ICB mean acute occupancy currently above 85% — apply system stress penalty (−2pp)</label>
+  </div>
+</div>
+
+<div class="card" id="result-card" style="display:none">
+  <div class="card-label">Local safety ceiling</div>
+  <div class="result-big">
+    <div class="result-num" id="result-num">—</div>
+    <div class="result-sub">recommended local occupancy ceiling</div>
+  </div>
+  <div class="bar-wrap">
+    <div class="bar-track"><div class="bar-fill" id="bar" style="width:0%"></div></div>
+    <div class="bar-marks">
+      <span class="bar-mark" style="left:0%">70%</span>
+      <span class="bar-mark" style="left:20%">75%</span>
+      <span class="bar-mark" style="left:40%">80%</span>
+      <span class="bar-mark" style="left:60%">85%</span>
+      <span class="bar-mark" style="left:80%">90%</span>
+      <span class="bar-mark" style="left:100%">95%</span>
+    </div>
+  </div>
+  <div class="breakdown" id="breakdown"></div>
+  <div id="verdict"></div>
+  <p class="source">Methodology: Bevan Briefing NHS Bed Occupancy Analysis 2025. Coefficients from OLS panel regression, trust + time FE, clustered SE. Data: KH03, NHS England A&E SitRep, 2018–25. <a href="https://github.com/LB1983/nhs-bed-occupancy-analysis">github.com/LB1983/nhs-bed-occupancy-analysis</a></p>
+</div>
+
+<script>
+const TRUSTS=[
+  {code:"RRV",name:"University College London Hospitals",short:"UCLH",type:"London teaching",d:0.4,n10:23,n25:49},
+  {code:"REF",name:"Royal Cornwall Hospitals Trust",short:"Royal Cornwall",type:"Rural DGH",d:33.7,n10:0,n25:0},
+  {code:"RM1",name:"Norfolk & Norwich University Hospitals",short:"Norfolk & Norwich",type:"Rural teaching",d:3.3,n10:2,n25:2},
+  {code:"R0A",name:"Manchester University NHS Foundation Trust",short:"MFT Manchester",type:"Non-London urban teaching",d:0.0,n10:8,n25:14},
+  {code:"RDE",name:"East Suffolk and North Essex NHS FT",short:"ESNEFT",type:"Semi-rural DGH",d:5.2,n10:1,n25:3},
+  {code:"RAX",name:"Kingston Hospital NHS FT",short:"Kingston Hospital",type:"Outer London DGH",d:2.1,n10:6,n25:18},
+  {code:"RJ7",name:"St George's University Hospitals NHS FT",short:"St George's",type:"London teaching",d:1.1,n10:12,n25:38},
+  {code:"RXW",name:"Shrewsbury and Telford Hospital NHS Trust",short:"Shrewsbury & Telford",type:"Rural DGH",d:14.2,n10:0,n25:1},
+  {code:"RJE",name:"University Hospitals of North Midlands",short:"UHNM",type:"Urban teaching",d:4.8,n10:2,n25:6},
+  {code:"RWE",name:"University Hospitals of Leicester NHS Trust",short:"UHL Leicester",type:"Urban teaching",d:2.2,n10:3,n25:9},
+  {code:"RQM",name:"Chelsea and Westminster Hospital NHS FT",short:"Chelsea & Westminster",type:"London teaching",d:0.5,n10:18,n25:44},
+  {code:"RDU",name:"Frimley Health NHS Foundation Trust",short:"Frimley Health",type:"Semi-rural DGH",d:8.4,n10:1,n25:6},
+  {code:"RYR",name:"Western Sussex Hospitals NHS FT",short:"Western Sussex",type:"Semi-rural DGH",d:7.1,n10:0,n25:2},
+  {code:"RWG",name:"West Hertfordshire Teaching Hospitals",short:"West Hertfordshire",type:"Semi-urban DGH",d:5.5,n10:2,n25:11},
+  {code:"RTG",name:"Derby Teaching Hospitals NHS FT",short:"Derby Hospitals",type:"Urban teaching",d:3.1,n10:1,n25:4},
+  {code:"RBZ",name:"Northern Lincolnshire and Goole NHS FT",short:"N Lincolnshire & Goole",type:"Rural DGH",d:18.4,n10:0,n25:0},
+  {code:"RLN",name:"City Hospitals Sunderland NHS FT",short:"Sunderland Royal",type:"Urban DGH",d:3.2,n10:1,n25:4},
+  {code:"RVJ",name:"North Bristol NHS Trust",short:"North Bristol",type:"Urban teaching",d:1.8,n10:2,n25:5},
+];
+
+let trust=null,manual=false;
+
+function filterList(){renderList(document.getElementById('search').value.toLowerCase());}
+
+function renderList(q=''){
+  const shown=q.length>1
+    ?TRUSTS.filter(t=>t.name.toLowerCase().includes(q)||t.code.toLowerCase().includes(q))
+    :TRUSTS.slice(0,6);
+  document.getElementById('trust-list').innerHTML=shown.map(t=>`
+    <button class="trust-option${trust&&trust.code===t.code?' selected':''}" onclick="pick('${t.code}')">
+      <span class="trust-name">${t.short} <span style="font-weight:400;color:#888780">${t.code}</span></span>
+      <span class="trust-meta">${t.type}</span>
+    </button>`).join('');
+}
+
+function pick(code){
+  trust=TRUSTS.find(t=>t.code===code);
+  manual=false;
+  document.getElementById('search').value=trust.name;
+  renderList('');
+  document.getElementById('prox-label').textContent=trust.name+' ('+trust.code+')';
+  document.getElementById('prox-card').style.display='block';
+  document.getElementById('prox-content').innerHTML=`
+    <div class="stats">
+      <div class="stat"><div class="stat-label">Nearest trust</div><div class="stat-val">${trust.d.toFixed(1)} km</div></div>
+      <div class="stat"><div class="stat-label">Within 10km</div><div class="stat-val">${trust.n10}</div></div>
+      <div class="stat"><div class="stat-label">Within 25km</div><div class="stat-val">${trust.n25}</div></div>
+    </div>
+    <p style="font-size:12px;color:#888780;margin-top:4px">${trust.type}</p>`;
+  document.getElementById('demand-card').style.display='block';
+  document.getElementById('result-card').style.display='block';
+  calc();
+}
+
+function showManual(){
+  trust=null;manual=true;
+  document.getElementById('prox-label').textContent='Proximity data (manual entry)';
+  document.getElementById('prox-card').style.display='block';
+  document.getElementById('prox-content').innerHTML=`
+    <div class="row2">
+      <div class="field"><label>Acute trusts within 10km</label><input type="number" id="m10" min="0" max="60" value="4" oninput="calc()"/></div>
+      <div class="field"><label>Acute trusts within 25km</label><input type="number" id="m25" min="0" max="80" value="12" oninput="calc()"/></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Distance to nearest acute trust (km)</label><input type="number" id="md" min="0" max="100" step="0.1" value="7.6" oninput="calc()"/></div>`;
+  document.getElementById('demand-card').style.display='block';
+  document.getElementById('result-card').style.display='block';
+  calc();
+}
+
+function getProx(){
+  if(manual)return{d:+document.getElementById('md').value,n10:+document.getElementById('m10').value,n25:+document.getElementById('m25').value};
+  return{d:trust.d,n10:trust.n10,n25:trust.n25};
+}
+
+function calc(){
+  if(!trust&&!manual)return;
+  const{d,n10,n25}=getProx();
+  const beta=parseFloat((-0.603+1.627*((d-7.59)/10.13)-4.283*((n10-4.2)/6.7)+4.162*((n25-12.84)/15.72)).toFixed(2));
+
+  let geoUp=0,geoLabel='',geoBadge='badge-gray';
+  if(beta<-3){geoUp=8;geoLabel='High buffer (+8pp)';geoBadge='badge-teal';}
+  else if(beta<-1){geoUp=5;geoLabel='Moderate buffer (+5pp)';geoBadge='badge-teal';}
+  else if(beta<0){geoUp=2;geoLabel='Marginal buffer (+2pp)';geoBadge='badge-amber';}
+  else{geoUp=0;geoLabel='No buffer (0pp)';geoBadge='badge-red';}
+
+  const edr=+document.getElementById('edr').value;
+  const ov=+document.getElementById('ov').value;
+  const sys=document.getElementById('sys').checked;
+  let edrAdj=0,edrLabel='Low (0pp)',edrBadge='badge-teal';
+  if(edr>=0.5){edrAdj=2;edrLabel='High (−2pp)';edrBadge='badge-red';}
+  else if(edr>=0.35){edrAdj=1;edrLabel='Mixed (−1pp)';edrBadge='badge-amber';}
+  let ovAdj=0,ovLabel='Low swing (0pp)',ovBadge='badge-teal';
+  if(ov>=0.06){ovAdj=2;ovLabel='High swing (−2pp)';ovBadge='badge-red';}
+  else if(ov>=0.03){ovAdj=1;ovLabel='Moderate swing (−1pp)';ovBadge='badge-amber';}
+
+  const ceiling=80+geoUp-edrAdj-ovAdj-(sys?2:0);
+  let color='#1BA6A6',vClass='verdict-teal';
+  if(ceiling<84){color='#E24A3B';vClass='verdict-red';}
+  else if(ceiling<87){color='#F4A724';vClass='verdict-amber';}
+
+  const pct=Math.min(100,Math.max(0,((ceiling-70)/25)*100));
+  document.getElementById('bar').style.width=pct+'%';
+  document.getElementById('bar').style.background=color;
+  document.getElementById('result-num').textContent=ceiling+'%';
+  document.getElementById('result-num').style.color=color;
+
+  let vText='';
+  if(ceiling>=88)vText='Strong geographic buffering — nearby alternatives absorb overflow when this trust runs hot. The relevant risk is simultaneous stress across the ICB footprint, not individual trust occupancy.';
+  else if(ceiling>=84)vText='Moderate position — close to the national 85% guidance. The target is broadly appropriate but requires active management during peak winter quarters.';
+  else if(ceiling>=80)vText='Limited geographic buffer and high demand pressure. Tightening the occupancy target without matching action on discharge pathways or community capacity will not close the gap.';
+  else vText='The calculated ceiling falls below the national floor. This is not a management failure — it is a structural capacity gap. The right interventions are NCTR reduction, demand management, and a formal bed base review.';
+
+  document.getElementById('breakdown').innerHTML=`
+    <div class="brow"><span>National floor</span><span>80%</span></div>
+    <div class="brow"><span>Geographic harm multiplier (β = ${beta})</span><span><span class="badge ${geoBadge}">+${geoUp}pp</span>&nbsp;${geoLabel}</span></div>
+    <div class="brow"><span>Emergency dependency (EDR ${edr.toFixed(2)})</span><span><span class="badge ${edrBadge}">−${edrAdj}pp</span>&nbsp;${edrLabel}</span></div>
+    <div class="brow"><span>Occupancy volatility (OV ${ov.toFixed(3)})</span><span><span class="badge ${ovBadge}">−${ovAdj}pp</span>&nbsp;${ovLabel}</span></div>
+    ${sys?'<div class="brow"><span>System stress penalty</span><span><span class="badge badge-red">−2pp</span></span></div>':''}
+    <div class="brow"><span>Local ceiling</span><span style="color:${color};font-size:16px">${ceiling}%</span></div>`;
+  document.getElementById('verdict').innerHTML=`<div class="verdict ${vClass}">${vText}</div>`;
+}
+
+renderList();
+</script>
+</body>
+</html>
